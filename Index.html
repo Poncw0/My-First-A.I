@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IA Virtual Interativa</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Live2D -->
+  <script src="https://unpkg.com/pixi.js@5/dist/pixi.min.js"></script>
+  <script src="https://unpkg.com/pixi-live2d-display/dist/index.min.js"></script>
+
+  <style>
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-15px); }
+    }
+
+    @keyframes blink-caret {
+      from, to { border-color: transparent }
+      50% { border-color: white }
+    }
+
+    .typewriter {
+      overflow: hidden;
+      white-space: nowrap;
+      display: inline-block;
+      position: relative;
+      text-align: left;
+    }
+
+    .typewriter::after {
+      content: "|";
+      position: absolute;
+      right: 0;
+      animation: blink-caret 0.75s step-end infinite;
+    }
+  </style>
+</head>
+
+<body class="bg-gradient-to-br from-indigo-900 via-purple-900 to-gray-900 text-white min-h-screen flex items-center justify-center p-4 overflow-hidden">
+  <div class="container mx-auto flex flex-col items-center justify-between gap-6 p-4 w-full max-w-4xl">
+    
+    <!-- Quadro com a sala e personagem -->
+    <div class="relative w-full h-72 sm:h-96 bg-black bg-opacity-50 rounded-2xl overflow-hidden border border-purple-400/20 shadow-2xl backdrop-blur-sm">
+      <!-- Imagem da sala -->
+      <img src="https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/0c8a200d-bd89-4315-af26-94db953747de.png" class="w-full h-full object-cover" alt="Sala" />
+      
+      <!-- Personagem Live2D -->
+      <div id="vtuber-container" class="absolute bottom-0 left-1/2 transform -translate-x-1/2">
+        <div id="vtuber-character" class="relative h-64 sm:h-80 transition-all duration-300"></div>
+      </div>
+    </div>
+
+    <!-- Interface -->
+    <div class="w-full bg-black bg-opacity-50 p-6 rounded-2xl shadow-xl border border-purple-400/20 backdrop-blur-sm">
+      <h1 class="text-3xl font-bold mb-6 text-center bg-gradient-to-r from-purple-400 to-blue-500 bg-clip-text text-transparent">Madame Herta</h1>
+
+      <div class="bg-black bg-opacity-30 p-4 rounded-xl h-48 mb-6 overflow-y-auto border border-purple-400/20 font-mono" id="chat-container">
+        <div class="text-blue-400 mb-2">IA: Olá! Eu sou sua assistente virtual. Como posso te ajudar hoje?</div>
+      </div>
+
+      <div class="flex gap-2 mb-4">
+        <input type="text" id="user-input" class="flex-1 bg-black/30 text-white px-4 py-3 rounded-xl border border-purple-400/30 focus:outline-none focus:ring-2 focus:ring-purple-500/50" placeholder="Escreva sua mensagem aqui..." />
+        <button id="send-btn" class="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 px-6 py-3 rounded-xl transition-all shadow-lg hover:shadow-purple-500/20">Enviar</button>
+      </div>
+
+      <div class="grid grid-cols-1 gap-2">
+        <button id="option1" class="typewriter bg-gradient-to-r from-purple-600/80 to-blue-600/80 hover:from-purple-700 hover:to-blue-700 px-4 py-3 rounded-xl transition-all shadow-md hover:shadow-purple-500/10" data-text="Madame Herta, qual seu conhecimento sobre..."></button>
+        <button id="option2" class="typewriter bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg transition" data-text="Poderia explicar sua pesquisa mais recente?"></button>
+        <button id="option3" class="typewriter bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg transition" data-text="Como você vê o futuro da inteligência artificial?"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Script principal -->
+  <script>
+    const memory = { userLikes: [], topicsDiscussed: [], lastInteraction: null };
+    const jokes = [
+      "Por que o computador foi ao médico? Porque tinha um vírus!",
+      "Qual é o contrário de volátil? Vem cá sobrinho!",
+      "Por que os elétrons nunca são convidados para festas? Porque eles sempre têm carga negativa.",
+      "O que um espelho falou para o outro? Vamos refletir sobre isso.",
+      "Como um músico de rock organiza sua casa? Com acordes!"
+    ];
+
+    let live2dModel;
+
+    const app = new PIXI.Application({
+      view: document.createElement('canvas'),
+      autoStart: true,
+      width: 300,
+      height: 400,
+      transparent: true,
+    });
+
+    document.getElementById('vtuber-character').appendChild(app.view);
+
+    PIXI.live2d.Live2DModel.from("modelosHiyori/hiyori/hiyori.model3.json").then(model => {
+      live2dModel = model;
+      model.scale.set(0.3);
+      model.position.set(0, 0);
+      app.stage.addChild(model);
+      model.motion('Idle');
+
+      window.setVtuberState = (state) => {
+        if (!live2dModel) return;
+        if (state === 'speaking') model.motion('TapBody');
+        else model.motion('Idle');
+      };
+    });
+
+    function speak(text) {
+      setVtuberState('speaking');
+
+      const chat = document.getElementById('chat-container');
+      const message = document.createElement('div');
+      message.className = 'text-blue-400 mb-2';
+      message.textContent = `IA: ${text}`;
+      chat.appendChild(message);
+      chat.scrollTop = chat.scrollHeight;
+
+      if (window.speechSynthesis) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'pt-BR';
+        utterance.rate = 0.9;
+        window.speechSynthesis.speak(utterance);
+        utterance.onend = () => setVtuberState('idle');
+      } else {
+        setTimeout(() => setVtuberState('idle'), 2000);
+      }
+
+      memory.lastInteraction = new Date();
+    }
+
+    function processUserInput() {
+      const input = document.getElementById('user-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const chat = document.getElementById('chat-container');
+      const userMessage = document.createElement('div');
+      userMessage.className = 'text-green-400 mb-2';
+      userMessage.textContent = `Você: ${text}`;
+      chat.appendChild(userMessage);
+      input.value = '';
+
+      let response;
+
+      if (text.toLowerCase().includes('olá') || text.toLowerCase().includes('oi')) {
+        response = `Olá! Como você está hoje?`;
+      } else if (text.toLowerCase().includes('nome')) {
+        response = `Meu nome é VirtualIA. Qual é o seu nome?`;
+      } else if (text.toLowerCase().includes('gosta') || text.toLowerCase().includes('interesses')) {
+        response = `Eu gosto muito de tecnologia, ciência e aprender coisas novas. E você, do que gosta?`;
+      } else if (text.toLowerCase().includes('obrigad') || text.toLowerCase().includes('agradece')) {
+        response = `De nada! Estou aqui para ajudar. Tem mais alguma coisa?`;
+      } else {
+        response = `Interessante! Eu vou pesquisar mais sobre "${text}". O que mais você gostaria de saber?`;
+      }
+
+      memory.topicsDiscussed.push(text);
+      setTimeout(() => speak(response), 800);
+    }
+
+    document.getElementById('send-btn').addEventListener('click', processUserInput);
+    document.getElementById('user-input').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') processUserInput();
+    });
+
+    function animateOptions() {
+      const options = document.querySelectorAll('.typewriter');
+      options.forEach((option, index) => {
+        setTimeout(() => {
+          const text = option.dataset.text;
+          option.textContent = text;
+        }, index * 2000);
+      });
+    }
+
+    setTimeout(() => {
+      speak("Madame Herta: Bem-vindo ao meu laboratório. Por onde gostaria de começar nossa conversa?");
+      animateOptions();
+    }, 1000);
+  </script>
+</body>
+</html>
